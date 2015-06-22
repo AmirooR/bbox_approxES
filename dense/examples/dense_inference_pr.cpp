@@ -119,6 +119,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
     float *u_result;
     float *p_result;
     float *init_x;
+    float *current_probs;
     DenseCRF2D* crf;
     double u_sum;
     double p_sum;
@@ -156,6 +157,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         im(NULL),
         anno(NULL),
         norms(NULL),
+        current_probs(NULL),
         approximate_pairwise(approximate_pairwise),
         do_initialization(do_initialization),
         do_normalization(do_normalization),
@@ -190,6 +192,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         memcpy( init_x, unary, N*M*sizeof(float) );
         l_unary = new float[N*M];
         norms = new double[N];
+        current_probs = new float[N*M];
+        crf->expAndNormalize( current_probs, unary, -1);
 
         crf = new DenseCRF2D(W,H,M);
         crf->setUnaryEnergy( unary );
@@ -198,7 +202,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         crf->addPairwiseBilateral( bsx, bsy, bsr, bsg, bsb, im, bw );
         u_result = new float[N];
         p_result = new float[N];
-
+        
         crf->unaryEnergy( map, u_result);
         crf->pairwiseEnergy(map, p_result, -1);
         for(int i = 0; i < N; ++i)
@@ -217,6 +221,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
 
     }
 
+    float* get_current_prob(){return current_probs;}
+
     short* get_map(){return map;}
 
     void make_log_probability_x(short *input_map)
@@ -233,16 +239,41 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         }
     }
 
-    void make_log_prob_x(float *input_probs)
+    void make_negative_log_prob_from_prob_x(float *input_probs, float* result)
+    {
+        for( int k=0; k<N*M; k++)
+        {
+             result[k] = -log(input_probs[k]);
+        }
+    }
+
+    void find_map(const float *prob)
+    {
+        for(int i=0; i<N; i++)
+        {
+            const float *p = prob + i*M;
+            float mx = p[0];
+            int imx = 0;
+            for(int j=1; j<M; j++)
+                if( mx < p[j] )
+                {
+                    mx = p[j];
+                    imx = j;
+                }
+            map[i] = imx;
+        }
+    }
 
     virtual short_array minimize(short_array input, double lambda, double& energy, double &m, double& b)
     {
+        // NOTE: keeping -log prob in aES 
+        //
         cout<<"Minimizing Lambda = "<<lambda<<endl;
-        short_array output(new short[N]);
+        short_array output(new float[N*M]);
         if( do_initialization)
         {
-            make_log_probability_x(input.get());
-            crf->setInitX(init_x);
+            //make_log_probability_x(input.get());
+            crf->setInitX(input.get());
         }
         for(int i = 0; i < N*M; i++)
             l_unary[i] = lambda*unary[i];
@@ -261,7 +292,10 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             }
             cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
-            crf->map(3, map);
+
+            crf->inference(5, current_probs);
+            find_map(current_probs);
+            make_negative_log_prob_from_prob_x(current_probs, output.get() );
             cout<<"AFTER ***"<<endl;
 
             crf->unaryEnergy( map, u_result);
@@ -272,7 +306,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             {
                 n_u_sum += u_result[i];
                 n_p_sum += p_result[i];
-                output[i] = map[i];
+                //output[i] = map[i];
                 u_sum += unary[ i*M+map[i]];
             }
             cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
@@ -284,7 +318,9 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         }
         else//computing exact pairwise
         {
-            crf->map(3, map);
+            crf->inference(5, current_probs);
+            find_map(current_probs);
+            make_negative_log_prob_from_prob_x(current_probs, output.get() );
             cout<<"AFTER ***"<<endl;
             crf->unaryEnergy( map, u_result);
             /* for test 
@@ -625,6 +661,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             delete[] init_x;
         if(norms)
             delete[] norms;
+        if(current_probs)
+            delete[] current_probs;
 
     }
 
@@ -637,13 +675,15 @@ int main( int argc, char* argv[]){
 		return 1;
 	}
     const int M = 3;
-    DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
+        DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
             /* do normalization */ MEAN_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
             /* approximate pairwise */false,
             /* use_prev_computation */true);
-    
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables(),/*lambda_min */ 0.0,/* lambda_max*/ 100.0, /* energy_minimizer */e,/* x0 */ e->get_map(), /*max_iter */10000,/*verbosity*/ 10);
+    float* current_x0 = new float[e->getNumberOfVariables()*M];
+    e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
+
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 100.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
@@ -660,5 +700,6 @@ int main( int argc, char* argv[]){
         //imwrite(s.c_str(), m);
     }
 
+    delete[] current_x0;
     delete e;
 }
