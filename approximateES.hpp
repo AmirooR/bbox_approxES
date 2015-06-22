@@ -40,7 +40,7 @@ class ApproximateES
     int verbosity;
 
     public:
-    ApproximateES(size_t _N, double _lambda_min, double _lambda_max, EnergyMinimizer* _m ,double* _x0 = NULL, size_t _max_iter = 10000, int _verbosity = 0):
+    ApproximateES(size_t _N, double _lambda_min, double _lambda_max, EnergyMinimizer* _m , float* _x0 = NULL, size_t _max_iter = 10000, int _verbosity = 0):
         kmc(_lambda_min, _lambda_max), 
         lambda_min(_lambda_min), 
         lambda_max(_lambda_max), 
@@ -49,7 +49,7 @@ class ApproximateES
         max_iter(_max_iter), 
         verbosity(_verbosity) 
     {
-        short_array x0( new double[N] );
+        short_array x0( new float[N] );
         for(size_t i = 0; i < N; i++) // copy
         {
             if(_x0 != NULL )
