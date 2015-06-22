@@ -58,9 +58,7 @@ protected:
 	// Run inference and return the pointer to the result
 	float* runInference( int n_iterations, float relax);
 	
-	// Auxillary functions
-	void expAndNormalize( float* out, const float* in, float scale = 1.0, float relax = 1.0 );
-	
+		
 	// Don't copy this object, bad stuff will happen
 	DenseCRF( DenseCRF & o ){}
 public:
@@ -73,6 +71,9 @@ public:
 	// features before passing them into this function
 	void addPairwiseEnergy( const float * features, int D, float w=1.0f, const SemiMetricFunction * function=NULL );
 	
+    // Auxillary functions
+	void expAndNormalize( float* out, const float* in, float scale = 1.0, float relax = 1.0 );
+
 	// Add your own favorite pairwise potential (ownwership will be transfered to this class)
 	void addPairwiseEnergy( PairwisePotential* potential );
 	

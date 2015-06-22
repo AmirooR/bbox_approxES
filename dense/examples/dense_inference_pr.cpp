@@ -193,8 +193,6 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         l_unary = new float[N*M];
         norms = new double[N];
         current_probs = new float[N*M];
-        crf->expAndNormalize( current_probs, unary, -1);
-
         crf = new DenseCRF2D(W,H,M);
         crf->setUnaryEnergy( unary );
         crf->setInitX( init_x);
@@ -202,7 +200,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         crf->addPairwiseBilateral( bsx, bsy, bsr, bsg, bsb, im, bw );
         u_result = new float[N];
         p_result = new float[N];
-        
+        crf->expAndNormalize( current_probs, unary, -1);
+
         crf->unaryEnergy( map, u_result);
         crf->pairwiseEnergy(map, p_result, -1);
         for(int i = 0; i < N; ++i)
@@ -264,19 +263,25 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         }
     }
 
-    virtual short_array minimize(short_array input, double lambda, double& energy, double &m, double& b)
+    virtual short_array minimize(short_array input, double lambda, double& energy, double &m, double& b, bool unary_init)
     {
         // NOTE: keeping -log prob in aES 
         //
         cout<<"Minimizing Lambda = "<<lambda<<endl;
         short_array output(new float[N*M]);
+        
+        for(int i = 0; i < N*M; i++)
+            l_unary[i] = lambda*unary[i];
+        
         if( do_initialization)
         {
             //make_log_probability_x(input.get());
-            crf->setInitX(input.get());
+            if(unary_init)
+                crf->setInitX(l_unary);
+            else
+                crf->setInitX(input.get());
         }
-        for(int i = 0; i < N*M; i++)
-            l_unary[i] = lambda*unary[i];
+
         crf->setUnaryEnergy(l_unary);
         if(approximate_pairwise)
         {
@@ -668,6 +673,25 @@ class DenseEnergyMinimizer: public EnergyMinimizer
 
 };
 
+short* map_from_neg_log_prob(const float* in, int N, int M)
+{
+    short* map = new short[N];
+    for(int k=0; k<N; k++)
+    {
+        const float *np = in + k*M;
+        float mx = np[0];
+        int imx = 0;
+        for(int j=1; j<M; j++)
+            if( np[j] < mx)
+            {
+                mx = np[j];
+                imx = j;
+            }
+        map[k] = imx;
+    }
+    return map;
+}
+
 
 int main( int argc, char* argv[]){
 	if (argc<4){
@@ -676,14 +700,14 @@ int main( int argc, char* argv[]){
 	}
     const int M = 3;
         DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
-            /* do normalization */ MEAN_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
+            /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
-            /* approximate pairwise */false,
-            /* use_prev_computation */true);
+            /* approximate pairwise */true,
+            /* use_prev_computation */false);
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 100.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 10.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
@@ -694,8 +718,10 @@ int main( int argc, char* argv[]){
     {
         string out("_output.ppm");
         string s = out_dir + SSTR( i ) + out;
-        unsigned char *res = colorize( labelings[i].get(), e->getWidth(), e->getHeight());
+        short* map = map_from_neg_log_prob(labelings[i].get(), e->getNumberOfVariables(), M);
+        unsigned char *res = colorize( map, e->getWidth(), e->getHeight());
         writePPM( s.c_str(), e->getWidth(), e->getHeight(), res);
+        delete[] map;
         delete[] res;
         //imwrite(s.c_str(), m);
     }
