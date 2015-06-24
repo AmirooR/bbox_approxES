@@ -271,7 +271,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         short_array output(new float[N*M]);
         
         for(int i = 0; i < N*M; i++)
-            l_unary[i] = lambda*unary[i];
+            l_unary[i] = (lambda+unary[i])*(i%M);
         
         if( do_initialization)
         {
@@ -285,8 +285,6 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         crf->setUnaryEnergy(l_unary);
         if(approximate_pairwise)
         {
-            double b_energy = lambda * u_sum + p_sum;
-            cout<<"Before optimization: approximate energy is "<<b_energy<<endl;
             crf->unaryEnergy( map, u_result);
             crf->pairwiseEnergy(map, p_result, -1);
             double n_u_sum = 0.0f, n_p_sum = 0.0f;
@@ -295,8 +293,9 @@ class DenseEnergyMinimizer: public EnergyMinimizer
                 n_u_sum += u_result[i];
                 n_p_sum += p_result[i];
             }
-            cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
+            cout<< "Unary sum: "<<n_u_sum <<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
+            cout<< "Before optimization: energy is "<<n_u_sum+n_p_sum<<endl;
 
             crf->inference(5, current_probs);
             find_map(current_probs);
@@ -314,11 +313,18 @@ class DenseEnergyMinimizer: public EnergyMinimizer
                 //output[i] = map[i];
                 u_sum += unary[ i*M+map[i]];
             }
-            cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
+            cout<< "Unary sum: "<<n_u_sum <<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
             cout<< "After optimization: energy is "<< (n_p_sum + n_u_sum) << endl;
-            m = u_sum;
-            b = n_p_sum;
+            m = 0;
+            b = 0;
+            for(int i=0; i<N; i++)
+            {
+                m += map[i];
+                b += unary[i*M+map[i]]*map[i];
+            }
+            
+            b += n_p_sum;
             energy = m * lambda + b;
         }
         else//computing exact pairwise
@@ -344,23 +350,22 @@ class DenseEnergyMinimizer: public EnergyMinimizer
 
                 memcpy(prev_map, map, N*sizeof(short));
                 prev_p_e = n_p_sum;
-
             }
 
             double n_u_sum = 0.0;
             u_sum = 0;
+            m = 0;
+            b = n_p_sum;
             for(int i = 0; i < N; ++i)
             {
                 n_u_sum += u_result[i];
-                //n_p_sum += p_result[i];
-                //output[i] = map[i];
                 u_sum += unary[ i*M+map[i]];
+                m += map[i];
+                b += map[i]*unary[i*M+map[i]];
             }
-            cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
+            cout<< "Unary sum: "<<n_u_sum<<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
             cout<< "After optimization: energy is "<< (n_p_sum + n_u_sum) << endl;
-            m = u_sum;
-            b = n_p_sum;
             energy = m * lambda + b;
         }
         return output;
