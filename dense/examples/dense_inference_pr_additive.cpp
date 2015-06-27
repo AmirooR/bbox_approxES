@@ -271,7 +271,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         short_array output(new float[N*M]);
         
         for(int i = 0; i < N*M; i++)
-            l_unary[i] = (lambda+unary[i])*(i%M);
+            l_unary[i] = (lambda+unary[i]);
         
         if( do_initialization)
         {
@@ -320,8 +320,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             b = 0;
             for(int i=0; i<N; i++)
             {
-                m += map[i];
-                b += unary[i*M+map[i]]*map[i];
+                m += 1;
+                b += unary[i*M+map[i]];
             }
             
             b += n_p_sum;
@@ -360,8 +360,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             {
                 n_u_sum += u_result[i];
                 u_sum += unary[ i*M+map[i]];
-                m += map[i];
-                b += map[i]*unary[i*M+map[i]];
+                m += 1;//map[i]
+                b += unary[i*M+map[i]];//*map[i];
             }
             cout<< "Unary sum: "<<n_u_sum<<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
@@ -703,7 +703,7 @@ int main( int argc, char* argv[]){
 		printf("Usage: %s image annotations outputdir\n", argv[0] );
 		return 1;
 	}
-    const int M = 3;
+    const int M = 2;
         DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
             /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
@@ -712,7 +712,7 @@ int main( int argc, char* argv[]){
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 1000.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ -1.0,/* lambda_max*/ 1.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);

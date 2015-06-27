@@ -285,8 +285,6 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         crf->setUnaryEnergy(l_unary);
         if(approximate_pairwise)
         {
-            double b_energy = lambda * u_sum + p_sum;
-            cout<<"Before optimization: approximate energy is "<<b_energy<<endl;
             crf->unaryEnergy( map, u_result);
             crf->pairwiseEnergy(map, p_result, -1);
             double n_u_sum = 0.0f, n_p_sum = 0.0f;
@@ -297,6 +295,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             }
             cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
+            cout<< "Before optimization: energy is "<< (n_p_sum + n_u_sum) << endl;
 
             crf->inference(5, current_probs);
             find_map(current_probs);
@@ -327,7 +326,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             find_map(current_probs);
             make_negative_log_prob_from_prob_x(current_probs, output.get() );
             cout<<"AFTER ***"<<endl;
-            crf->unaryEnergy( map, u_result);
+            //crf->unaryEnergy( map, u_result);
             /* for test 
                if(num_computations>0)
                test_computations();
@@ -351,7 +350,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             u_sum = 0;
             for(int i = 0; i < N; ++i)
             {
-                n_u_sum += u_result[i];
+                n_u_sum += lambda*unary[i*M+map[i]];//u_result[i];
                 //n_p_sum += p_result[i];
                 //output[i] = map[i];
                 u_sum += unary[ i*M+map[i]];
@@ -702,12 +701,12 @@ int main( int argc, char* argv[]){
         DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
             /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
-            /* approximate pairwise */true,
-            /* use_prev_computation */false);
+            /* approximate pairwise */false,
+            /* use_prev_computation */true);
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 1000.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */10000,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 20000.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
