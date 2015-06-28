@@ -771,7 +771,7 @@ int main( int argc, char* argv[]){
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 1.0,/* lambda_max*/ 1.1, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */500,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 20.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */500,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
