@@ -88,7 +88,7 @@ inline void  get_color(int c, int& r, int& g, int& b)
             r = 64; g = 128; b = 128;
             break;
         case 12:
-            r = 192; g = 128; g = 128;
+            r = 192; g = 128; b = 128;
             break;
         case 13:
             g = 64;
@@ -100,7 +100,7 @@ inline void  get_color(int c, int& r, int& g, int& b)
             g = 192;
             break;
         case 16:
-            r = 128; b = 64; g = 128;
+            r = 128; g = 64; b = 128;
             break;
         case 17:
             g = 192; b = 128;
@@ -211,8 +211,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             bool do_initialization = true,
             bool approximate_pairwise=false,
             bool use_prev_computation=true,
-            double gsx = 3.f, double gsy = 3.f, double gw=3.f,
-            double bsx = 60.f, double bsy = 60.f, double bsr=20.f, double bsg=20.f, double bsb=20.f, double bw=10.f
+            double gsx = 1.f, double gsy = 1.f, double gw=1.f,
+            double bsx = 80.f, double bsy = 80.f, double bsr=13.f, double bsg=13.f, double bsb=13.f, double bw=80.f
             ):
         M(M),
         u_sum(0),
@@ -364,7 +364,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
             cout<< "Before optimization: energy is "<< (n_p_sum + n_u_sum) << endl;
 
-            crf->inference(5, current_probs);
+            crf->inference(15, current_probs);
             find_map(current_probs);
             make_negative_log_prob_from_prob_x(current_probs, output.get() );
             cout<<"AFTER ***"<<endl;
@@ -389,7 +389,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         }
         else//computing exact pairwise
         {
-            crf->inference(5, current_probs);
+            crf->inference(15, current_probs);
             find_map(current_probs);
             make_negative_log_prob_from_prob_x(current_probs, output.get() );
             cout<<"AFTER ***"<<endl;

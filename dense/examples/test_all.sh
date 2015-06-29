@@ -1,4 +1,4 @@
-#! /bin/env bash
+#! /usr/bin/env bash
 
 img_dir=/Users/amirrahimi/Downloads/MSRC_ObjCategImageDatabase_v2/Images/ppms/
 unary_dir=/Users/amirrahimi/Downloads/msrc_compressed/

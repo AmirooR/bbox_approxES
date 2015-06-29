@@ -88,7 +88,7 @@ inline void  get_color(int c, int& r, int& g, int& b)
             r = 64; g = 128; b = 128;
             break;
         case 12:
-            r = 192; g = 128; g = 128;
+            r = 192; g = 128; b = 128;
             break;
         case 13:
             g = 64;
@@ -100,7 +100,7 @@ inline void  get_color(int c, int& r, int& g, int& b)
             g = 192;
             break;
         case 16:
-            r = 128; b = 64; g = 128;
+            r = 128; g = 64; b = 128;
             break;
         case 17:
             g = 192; b = 128;
@@ -785,13 +785,14 @@ int main( int argc, char* argv[]){
 
     DenseCRF2D crf(W,H,M);
     crf.setUnaryEnergy( unary);
+    crf.setInitX(unary);
     //double gsx = 3.f, double gsy = 3.f, double gw=3.f,
     //double bsx = 60.f, double bsy = 60.f, double bsr=20.f, double bsg=20.f, double bsb=20.f, double bw=10.f
-    crf.addPairwiseGaussian( 3, 3, 3);
+    crf.addPairwiseGaussian( 1, 1, 1);
     //crf->addPairwiseBilateral( bsx, bsy, bsr, bsg, bsb, im, bw );
 
-    crf.addPairwiseBilateral(60., 60., 20., 20., 20., im, 10);
-    crf.map(5, map);
+    crf.addPairwiseBilateral(80., 80., 13., 13., 13., im, 80);
+    crf.map(15, map);
     unsigned char *res = colorize( map, W, H);
 
     writePPM( argv[3], W, H, res);
