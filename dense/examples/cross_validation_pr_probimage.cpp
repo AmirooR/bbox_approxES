@@ -98,7 +98,7 @@ float * classifyCompressed( const ProbImage& prob_im, int W, int H, int M , shor
 	return res;
 }
 
-float * classifyUncompressed( const ProbImage& prob_im, int W, int H, int M , short* map)
+float * classifyCompressedNoLOG( const ProbImage& prob_im, int W, int H, int M , short* map)
 {
 	float * res = new float[W*H*M];
     float epsilon = 0; //1e-10;
@@ -167,7 +167,7 @@ float * classifyGT_PROB( const ProbImage& prob_im, int W, int H, int M , short* 
 
 float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
 {
-    return classifyUncompressed(prob_im, W, H, M, map);
+    return classifyCompressedNoLOG(prob_im, W, H, M, map);
 }
 
 
@@ -197,24 +197,35 @@ int main( int argc, char* argv[]){
     //classify( const ProbImage& prob_im, int W, int H, int M , short* map)
     short *map = new short[W*H];
     float *unary = classify( prob_im, W, H, M, map);
-   
-//#pragma omp parallel for
-    for(int gsx = 3; gsx <= 3; gsx+=1)
-    {
 #pragma omp parallel for
-        for(int w1=4; w1<=6;w1+=2)
+ for(int logl=-3; logl<=5;logl++)
+ {
+     float l = powf(2,logl);
+//#pragma omp parallel for
+    for(int gsx = 3; gsx <= 3; gsx+=1) //3
+    {
+//#pragma omp parallel for
+        for(int w1=5; w1<=5;w1+=1) //5
         {
-            for(int bsx = 101;  bsx <= 101; bsx+=1)
-                for(int bsr = 7; bsr <= 7; bsr+= 1)
-                    for(int w2=3; w2 <=3; w2+= 1)
+//#pragma omp parallel for
+            for(int bsx = 78;  bsx <= 78; bsx+=1) //78
+            {
+//#pragma omp parallel for
+                for(int bsr = 3; bsr <= 3; bsr+= 2) //3 <- 7
+                {
+//#pragma omp parallel for
+                    for(int w2=5; w2 <=5; w2+= 1) //5
                     {
-                        cout<<"[gsx, w1, bsx, bsr, w] = "<<"["<<gsx<<", "<<w1<<", "<<bsx<<", "<<bsr<<", "<<w2<<"]"<<endl;
+                        cout<<"[logl, gsx, w1, bsx, bsr, w] = "<<"["<<logl<<", "<<gsx<<", "<<w1<<", "<<bsx<<", "<<bsr<<", "<<w2<<"]"<<endl;
                         DenseCRF2D crf(W,H,M);
-                        crf.setUnaryEnergy( unary);
-                        crf.setInitX(unary);
+                        float* l_unary = new float[M*H*W];
+                        for(int idx=0; idx < M*H*W; idx++)
+                            l_unary[idx] = l*unary[idx];
+                        crf.setUnaryEnergy( l_unary);
+                        crf.setInitX(l_unary);
                         crf.addPairwiseGaussian( gsx, gsx, w1);
                         string out(argv[3]);
-                        string s = string("CROSSVAL-UNCOMPRESSED-COORD/")+SSTR(gsx)+string("_")+SSTR(w1)+string("_")+SSTR(bsx)+string("_")+SSTR(bsr)+string("_")+SSTR(w2)+string("/")+out;
+                        string s = string("CROSSVAL-UNCOMPRESSED-COORD/")+SSTR(logl)+string("_")+SSTR(gsx)+string("_")+SSTR(w1)+string("_")+SSTR(bsx)+string("_")+SSTR(bsr)+string("_")+SSTR(w2)+string("/")+out;
                         string mkdir_s = string("mkdir -p ")+s;
                         system(mkdir_s.c_str());
                         string wrt_s = s+string("/")+out+string(".ppm");
@@ -223,9 +234,13 @@ int main( int argc, char* argv[]){
                         unsigned char *res = colorize( map, W, H);
                         writePPM( wrt_s.c_str(), W, H, res);
                         delete[] res;
+                        delete[] l_unary;
                     }
+                }
+            }
         }
     }
+ }
     
     delete[] map;
     delete[] unary;

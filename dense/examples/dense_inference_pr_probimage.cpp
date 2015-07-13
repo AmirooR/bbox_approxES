@@ -77,7 +77,7 @@ unsigned char * colorize( short* map, int W, int H ){
 const float GT_PROB = 0.75;
 
 
-float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
+float * classifyCompressedLogProb( const ProbImage& prob_im, int W, int H, int M , short* map)
 {
 	float * res = new float[W*H*M];
     float epsilon = 1e-10;
@@ -99,6 +99,43 @@ float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
         map[k] = (short)imx;
     }
 	return res;
+}
+
+float * classifyCompressedNoLOG( const ProbImage& prob_im, int W, int H, int M , short* map)
+{
+	float * res = new float[W*H*M];
+    float epsilon = 0; //1e-10;
+	for( int k=0; k<W*H; k++ )
+    {
+        float * r = res + k*M;
+        float mx = prob_im(k%W, k/W,0);
+        int imx = 0;
+        for( int j=0; j<M; j++ )
+        {
+            /*float prob = prob_im(k%W, k/W, j);
+            r[j] = -log( prob + epsilon);
+            if( mx < prob )
+            {
+                mx = prob;
+                imx = j;
+            }*/
+            float boost_energy = prob_im(k%W, k/W, j);
+            r[j] = -boost_energy;
+            if( mx < boost_energy)
+            {
+                mx = boost_energy;
+                imx = j;
+            }
+        }
+        map[k] = (short)imx;
+    }
+	return res;
+}
+
+
+float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
+{
+    return classifyCompressedNoLOG(prob_im, W, H, M, map);
 }
 
 
@@ -138,8 +175,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             bool do_initialization = true,
             bool approximate_pairwise=false,
             bool use_prev_computation=true,
-            double gsx = 1.f, double gsy = 1.f, double gw=1.f,
-            double bsx = 80.f, double bsy = 80.f, double bsr=13.f, double bsg=13.f, double bsb=13.f, double bw=80.f
+            double gsx = 3.f, double gsy = 3.f, double gw=5.f,
+            double bsx = 78.f, double bsy = 78.f, double bsr=3.f, double bsg=3.f, double bsb=3.f, double bw=5.f
             ):
         M(M),
         u_sum(0),

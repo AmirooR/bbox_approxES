@@ -74,7 +74,7 @@ unsigned char * colorize( short* map, int W, int H ){
 
 
 
-float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
+float * classifyCompressed( const ProbImage& prob_im, int W, int H, int M , short* map)
 {
 	float * res = new float[W*H*M];
     float epsilon = 1e-10;
@@ -96,6 +96,43 @@ float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
         map[k] = (short)imx;
     }
 	return res;
+}
+
+float * classifyCompressedNoLOG( const ProbImage& prob_im, int W, int H, int M , short* map)
+{
+	float * res = new float[W*H*M];
+    float epsilon = 0; //1e-10;
+	for( int k=0; k<W*H; k++ )
+    {
+        float * r = res + k*M;
+        float mx = prob_im(k%W, k/W,0);
+        int imx = 0;
+        for( int j=0; j<M; j++ )
+        {
+            /*float prob = prob_im(k%W, k/W, j);
+            r[j] = -log( prob + epsilon);
+            if( mx < prob )
+            {
+                mx = prob;
+                imx = j;
+            }*/
+            float boost_energy = prob_im(k%W, k/W, j);
+            r[j] = -boost_energy;
+            if( mx < boost_energy)
+            {
+                mx = boost_energy;
+                imx = j;
+            }
+        }
+        map[k] = (short)imx;
+    }
+	return res;
+}
+
+
+float * classify( const ProbImage& prob_im, int W, int H, int M , short* map)
+{
+    return classifyCompressedNoLOG(prob_im, W, H, M, map);
 }
 
 
@@ -133,10 +170,10 @@ int main( int argc, char* argv[]){
     crf.setInitX(unary);
     //double gsx = 3.f, double gsy = 3.f, double gw=3.f,
     //double bsx = 60.f, double bsy = 60.f, double bsr=20.f, double bsg=20.f, double bsb=20.f, double bw=10.f
-    crf.addPairwiseGaussian( 1, 1, 1);
+    crf.addPairwiseGaussian( 3, 3, 5);
     //crf->addPairwiseBilateral( bsx, bsy, bsr, bsg, bsb, im, bw );
 
-    crf.addPairwiseBilateral(80., 80., 13., 13., 13., im, 80);
+    crf.addPairwiseBilateral(78., 78., 3., 3., 3., im, 5);
     crf.map(15, map);
     unsigned char *res = colorize( map, W, H);
 
