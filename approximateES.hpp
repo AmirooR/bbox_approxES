@@ -38,6 +38,7 @@ class ApproximateES
     EnergyMinimizer* minimizer;
     size_t max_iter;
     int verbosity;
+    int e1, e2, e3;
 
     public:
     ApproximateES(size_t _N, double _lambda_min, double _lambda_max, EnergyMinimizer* _m , float* _x0 = NULL, size_t _max_iter = 10000, int _verbosity = 0):
@@ -49,6 +50,7 @@ class ApproximateES
         max_iter(_max_iter), 
         verbosity(_verbosity) 
     {
+        e1 = e2 = e3 = 0;
         short_array x0( new float[N] );
         for(size_t i = 0; i < N; i++) // copy
         {
@@ -95,6 +97,13 @@ class ApproximateES
             short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, false);
             short_array x2 = minimizer->minimize( u.x_r, u.lambda, energy2, m2, b2, false);
             short_array x3 = minimizer->minimize( u.x_r, u.lambda, energy3, m3, b3, true);
+            if(min_energy > energy2 && min_energy > energy3)
+                e1++;
+            else if( energy2 > energy3 && energy2 > min_energy)
+                e2++;
+            else
+                e3++;
+
            
             if( energy2 < min_energy)
             {
@@ -151,6 +160,7 @@ class ApproximateES
         if(iter == max_iter)
             cout<<"Maximum number of iterations reached"<<endl;
         cout<<"Done in "<<iter<<" iterations."<<endl;
+        cout<<KBCYN<<"[e1, e2, e3] = ["<<e1<<", "<<e2<<", "<<e3<<"]"<<KNRM<<endl;
         if(verbosity >= 1)
             cout<<kmc<<endl;
         if(verbosity >= 2)
