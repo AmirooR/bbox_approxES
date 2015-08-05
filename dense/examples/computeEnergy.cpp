@@ -195,6 +195,13 @@ int main( int argc, char* argv[])
         sum += u_result[i] + p_result[i];
     }
     cout<<sum<<endl;
+    delete[] u_result;
+    delete[] p_result;
+    delete crf;
+    delete[] map;
+    delete[] unary;
+    delete[] im;
+    delete[] labelling_image;
     return 0;
 }
  
