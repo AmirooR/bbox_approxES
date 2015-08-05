@@ -18,5 +18,8 @@ target_link_libraries( proposal densecrf probimage )
 add_executable( proposal_additive util.cpp proposal_additive.cpp )
 target_link_libraries( proposal_additive densecrf probimage )
 
+add_executable(computeEnergy util.cpp computeEnergy.cpp )
+target_link_libraries( computeEnergy densecrf probimage )
+
 target_link_libraries( dense_inference_pr_additive densecrf )
 target_link_libraries( dense_inference_pr densecrf )
