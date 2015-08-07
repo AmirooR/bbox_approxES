@@ -35,15 +35,99 @@
 #include <sstream>
 #include <cstdlib>
 #include <cstring>
+#include <opencv2/opencv.hpp>
+
 
 #define NO_NORMALIZATION 0
 #define MEAN_NORMALIZATION 1
 #define PIXEL_NORMALIZATION 2
+
 using namespace std;
+using namespace cv;
 
 #define SSTR( x ) dynamic_cast< std::ostringstream & >( \
                         ( std::ostringstream() << std::dec << x ) ).str()
 
+Mat FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg_tr = 64, double prob_add = 0.0)
+{
+    Mat patterns(0, 0, CV_32F);
+    Mat bg_patterns(0, 0, CV_32F);
+    
+    for(int r=0; r<im.rows; r++)
+    {
+        for(int c=0; c<im.cols; c++)
+        {
+            Vec3b p = im.at<Vec3b>(r,c);
+            float cb = p[0]/255.0f;
+            float cg = p[1]/255.0f;
+            float cr = p[2]/255.0f;
+            Mat pat = (cv::Mat_<float>(1,3)<< cr,cg,cb);
+            unsigned char m = fgMask.at<uchar>(r,c);
+            if( m == fg_tr)
+            {
+                patterns.push_back(pat);
+            }
+            else if ( m == bg_tr)
+            {
+                bg_patterns.push_back(pat);
+            }
+        }
+    }
+
+    const int cov_mat_type = cv::EM::COV_MAT_GENERIC;
+    cv::TermCriteria term(CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 1500, 1e-4);
+    cv::EM gmm(num_clusters, cov_mat_type, term);
+    cout << "#fg samples: " << patterns.rows << endl;
+    cv::Mat labels, posterior, logLikelihood;
+
+    cv::EM bg_gmm(num_clusters, cov_mat_type, term);
+    cout << "#bg samples: " << bg_patterns.rows << endl;
+    cv::Mat bg_labels, bg_posterior, bg_logLikelihood;
+
+
+    cout << "Training Foreground GMM... " << flush;
+    gmm.train(patterns, logLikelihood, labels, posterior);
+    cout << "Done!" << endl;
+
+    cout << "Training Background GMM... " << flush;
+    bg_gmm.train(bg_patterns, bg_logLikelihood, bg_labels, bg_posterior);
+    cout << "Done!" << endl;
+
+
+    Mat output(im.rows, im.cols, CV_64FC1);
+
+    int i = 0;
+    double max = 0;
+    for(int r=0; r<im.rows; r++)
+    {
+        for(int c=0; c<im.cols; c++)
+        {
+            Vec3b p = im.at<Vec3b>(r,c);
+            float cb = p[0]/255.0f;
+            float cg = p[1]/255.0f;
+            float cr = p[2]/255.0f;
+            Mat pat = (cv::Mat_<float>(1,3)<< cr,cg,cb);
+            Vec2d fg_logp = gmm.predict(pat);
+            Vec2d bg_logp = bg_gmm.predict(pat);
+
+            double fg_prob = (exp(fg_logp[0])+prob_add)/(exp(fg_logp[0])+exp(bg_logp[0])+2*prob_add);
+            output.at<double>(r,c) = fg_prob;
+        }
+    }
+
+    /*Mat output_g(im.rows, im.cols, CV_8U);
+
+    for(int r=0; r<im.rows; r++)
+    {
+        for(int c=0; c<im.cols; c++)
+        {
+            output_g.at<uchar>(r,c) = saturate_cast<uchar>( ( output.at<double>(r,c))*255.0 );
+        }
+    }*/
+
+    return output;
+
+}
 
 // Store the colors we read, so that we can write them again.
 int nColors = 0;
@@ -694,10 +778,10 @@ short* map_from_neg_log_prob(const float* in, int N, int M)
 
 int main( int argc, char* argv[]){
 	if (argc<4){
-		printf("Usage: %s image annotations outputdir\n", argv[0] );
+		printf("Usage: %s image box outputdir\n", argv[0] );
 		return 1;
 	}
-    const int M = 3;
+    const int M = 2;
         DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
             /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
