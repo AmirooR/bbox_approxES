@@ -232,8 +232,9 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             int fg_tr = 128,
             int bg_tr = 64,
             double prob_add = 0.0,
-            double gsx = 3.f, double gsy = 3.f, double gw=5.f,
-            double bsx = 78.f, double bsy = 78.f, double bsr=3.f, double bsg=3.f, double bsb=3.f, double bw=5.f
+            double gsx = 3.f, double gsy = 3.f, double gw=10.f,
+            double bsx = 20.f, double bsy = 20.f, double bsr=33.f, double bsg=33.f, double bsb=33.f, double bw=6.f,
+            double isr = 43.f, double isg = 43.f, double isb = 43.f, double iw = 2.f
             ):
         M(M),
         u_sum(0),
@@ -298,6 +299,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         crf->setInitX( init_x);
         crf->addPairwiseGaussian( gsx, gsy, gw );
         crf->addPairwiseBilateral( bsx, bsy, bsr, bsg, bsb, im, bw );
+        crf->addPairwiseGlobalColor( isr, isg, isb, im, iw );
         u_result = new float[N];
         p_result = new float[N];
         crf->expAndNormalize( current_probs, unary, -1);

@@ -116,6 +116,8 @@ public:
 	
 	// Add a Bilateral pairwise potential with spacial standard deviations sx, sy and color standard deviations sr,sg,sb
 	void addPairwiseBilateral( float sx, float sy, float sr, float sg, float sb, const unsigned char * im, float w, const SemiMetricFunction * function=NULL );
+    void addPairwiseGlobalColor( float sr, float sg, float sb, const unsigned char *im, float w, const SemiMetricFunction *function=NULL);
+
 	
 	// Set the unary potential for a specific variable
 	void setUnaryEnergy( int x, int y, const float * unary );
