@@ -48,7 +48,7 @@ using namespace cv;
 #define SSTR( x ) dynamic_cast< std::ostringstream & >( \
                         ( std::ostringstream() << std::dec << x ) ).str()
 
-Mat FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg_tr = 64, double prob_add = 0.0)
+float* FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg_tr = 64, double prob_add = 0.0)
 {
     Mat patterns(0, 0, CV_32F);
     Mat bg_patterns(0, 0, CV_32F);
@@ -94,7 +94,8 @@ Mat FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg
     cout << "Done!" << endl;
 
 
-    Mat output(im.rows, im.cols, CV_64FC1);
+    //Mat output(im.rows, im.cols, CV_64FC1);
+    float* output = new float[im.rows*im.cols*2];
 
     int i = 0;
     double max = 0;
@@ -110,8 +111,10 @@ Mat FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg
             Vec2d fg_logp = gmm.predict(pat);
             Vec2d bg_logp = bg_gmm.predict(pat);
 
-            double fg_prob = (exp(fg_logp[0])+prob_add)/(exp(fg_logp[0])+exp(bg_logp[0])+2*prob_add);
-            output.at<double>(r,c) = fg_prob;
+            float fg_prob = (exp(fg_logp[0])+prob_add)/(exp(fg_logp[0])+exp(bg_logp[0])+2*prob_add);
+            //output.at<double>(r,c) = fg_prob;
+            output[ (r*im.cols+c)*2 + 0] = -log(1.0f-fg_prob);
+            output[ (r*im.cols+c)*2 + 1] = -log(fg_prob);
         }
     }
 
@@ -195,7 +198,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
     int M;
     int N;
     unsigned char *im;
-    unsigned char *anno;
+    Mat imMat;
+    Mat annoMask;
     short *map;
     short *prev_map;
     float *unary;
@@ -224,8 +228,12 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             bool do_initialization = true,
             bool approximate_pairwise=false,
             bool use_prev_computation=true,
-            double gsx = 3.f, double gsy = 3.f, double gw=3.f,
-            double bsx = 60.f, double bsy = 60.f, double bsr=20.f, double bsg=20.f, double bsb=20.f, double bw=10.f
+            int num_clusters = 10,
+            int fg_tr = 128,
+            int bg_tr = 64,
+            double prob_add = 0.0,
+            double gsx = 3.f, double gsy = 3.f, double gw=5.f,
+            double bsx = 78.f, double bsy = 78.f, double bsr=3.f, double bsg=3.f, double bsb=3.f, double bw=5.f
             ):
         M(M),
         u_sum(0),
@@ -239,7 +247,6 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         init_x(NULL),
         p_result(NULL),
         im(NULL),
-        anno(NULL),
         norms(NULL),
         current_probs(NULL),
         approximate_pairwise(approximate_pairwise),
@@ -252,26 +259,35 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         prev_p_e(0)
     {
         int GH, GW;
-        im = readPPM( im_path, W, H );
-        anno = readPPM( anno_path, GW, GH );
-        if (!im){
-            printf("Failed to load image!\n");
-            exit(1);
-        }
-
-        if (!anno){
-            printf("Failed to load annotations!\n");
-            exit(1);
-        }
+        imMat = imread(im_path, CV_LOAD_IMAGE_COLOR);
+        annoMask = imread(anno_path, CV_LOAD_IMAGE_GRAYSCALE);
+        
+        W = imMat.cols;
+        H = imMat.rows;
+        GW = annoMask.cols;
+        GH = annoMask.rows;
 
         if (W!=GW || H!=GH){
             printf("Annotation size doesn't match image!\n");
             exit(1);
         }
+
+        im = new unsigned char[H*W*3];
+        for(int r=0; r<H; r++)
+        {            
+            for(int c=0; c<W; c++)
+            {
+                Vec3b p = imMat.at<Vec3b>(r,c);
+                im[(r*W+c)*3+2] = p[0];
+                im[(r*W+c)*3+1] = p[1];
+                im[(r*W+c)*3+0] = p[2];
+            }
+        }
         N = W*H;
         map = new short[N];
         prev_map = new short[N];
-        unary = classify( anno, W, H, M , map);
+        unary = FgProbGMM( imMat, annoMask,  num_clusters, fg_tr,  bg_tr, prob_add);
+//classify( anno, W, H, M , map);
         init_x = new float[N*M];
         memcpy( init_x, unary, N*M*sizeof(float) );
         l_unary = new float[N*M];
@@ -741,8 +757,6 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             delete[] p_result;
         if(im)
             delete[] im;
-        if(anno)
-            delete[] anno;
         if(l_unary)
             delete[] l_unary;
         if(init_x)
@@ -790,7 +804,7 @@ int main( int argc, char* argv[]){
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 20000.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 20.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
