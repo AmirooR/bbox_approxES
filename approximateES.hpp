@@ -101,7 +101,7 @@ class ApproximateES
                 e1++;
             else if( energy2 > energy3 && energy2 > min_energy)
                 e2++;
-            else
+            else if( energy3 > energy2 && energy3 > min_energy)
                 e3++;
 
            

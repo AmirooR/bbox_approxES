@@ -113,8 +113,8 @@ float* FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int
 
             float fg_prob = (exp(fg_logp[0])+prob_add)/(exp(fg_logp[0])+exp(bg_logp[0])+2*prob_add);
             //output.at<double>(r,c) = fg_prob;
-            output[ (r*im.cols+c)*2 + 0] = -log(1.0f-fg_prob);
-            output[ (r*im.cols+c)*2 + 1] = -log(fg_prob);
+            output[ (r*im.cols+c)*2 + 0] = -(1.0f-fg_prob);
+            output[ (r*im.cols+c)*2 + 1] = -(fg_prob);
         }
     }
 
@@ -144,10 +144,18 @@ void putColor( unsigned char * c, unsigned int cc ){
 // Produce a color image from a bunch of labels
 unsigned char * colorize( short* map, int W, int H ){
 	unsigned char * r = new unsigned char[ W*H*3 ];
-	for( int k=0; k<W*H; k++ ){
-		int c = colors[ map[k] ];
-		putColor( r+3*k, c );
-	}
+    for( int k=0; k<W*H; k++ ){
+        int c = 0;
+        if( map[k] == 1)
+        {
+            c = 255;
+        }
+        r[3*k+0] = c;
+        r[3*k+1] = c;
+        r[3*k+2] = c;
+
+        //putColor( r+3*k, c );
+    }
 	return r;
 }
 
@@ -217,10 +225,15 @@ class DenseEnergyMinimizer: public EnergyMinimizer
     int do_normalization;
     double gsx,gsy,gw;
     double bsx,bsy,bsr,bsg,bsb,bw;
+    double isr, isg, isb, iw;
     double *norms;
     double mean_norm;
     int num_computations;
     double prev_p_e;
+    int num_clusters;
+    int fg_tr;
+    int bg_tr;
+    double prob_add;
 
     public:
     DenseEnergyMinimizer(const char *im_path, const char *anno_path, int M, 
@@ -232,8 +245,11 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             int fg_tr = 128,
             int bg_tr = 64,
             double prob_add = 0.0,
-            double gsx = 3.f, double gsy = 3.f, double gw=10.f,
+            /*double gsx = 3.f, double gsy = 3.f, double gw=10.f,
             double bsx = 20.f, double bsy = 20.f, double bsr=33.f, double bsg=33.f, double bsb=33.f, double bw=6.f,
+            double isr = 43.f, double isg = 43.f, double isb = 43.f, double iw = 2.f*/
+            double gsx = 3.f, double gsy = 3.f, double gw=5.f,
+            double bsx = 78.f, double bsy = 78.f, double bsr=3.f, double bsg=3.f, double bsb=3.f, double bw=13.f,
             double isr = 43.f, double isg = 43.f, double isb = 43.f, double iw = 2.f
             ):
         M(M),
@@ -256,13 +272,19 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         use_prev_computation(use_prev_computation),
         gsx(gsx), gsy(gsy), gw(gw),
         bsx(bsx), bsy(bsy), bsr(bsr), bsg(bsg), bsb(bsb), bw(bw),
+        isr(isr), isg(isg), isb(isb), iw(iw),
+        num_clusters(num_clusters),
+        fg_tr(fg_tr), bg_tr(bg_tr),prob_add(prob_add),
         num_computations(0),
         prev_p_e(0)
     {
         int GH, GW;
         imMat = imread(im_path, CV_LOAD_IMAGE_COLOR);
+        resize(imMat, imMat, Size(0,0), 0.25, 0.25);
+
         annoMask = imread(anno_path, CV_LOAD_IMAGE_GRAYSCALE);
-        
+        resize(annoMask, annoMask, Size(0,0), 0.25, 0.25);
+
         W = imMat.cols;
         H = imMat.rows;
         GW = annoMask.cols;
@@ -802,11 +824,16 @@ int main( int argc, char* argv[]){
             /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
             /* approximate pairwise */false,
-            /* use_prev_computation */true);
+            /* use_prev_computation */true,
+            /* num_clusters */ 10,
+            /* fg_tr */ 128,
+            /* bg_tr */ 64,
+            /* prob_add */ 1000);
+
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.0,/* lambda_max*/ 20.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.001,/* lambda_max*/ 80000.001, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
     string out_dir(argv[3]);
