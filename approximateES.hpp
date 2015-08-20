@@ -99,13 +99,11 @@ class ApproximateES
             Lambda.pop();
             double energy2, m2, b2,min_m, min_b, min_energy;
             double energy3, m3, b3;
-            short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, true);
+            //short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, true);
 
-            //short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, false);
+            short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, false);
 
-            /* TODO: changed! Uncomment
-             *
-             * short_array x2 = minimizer->minimize( u.x_r, u.lambda, energy2, m2, b2, false);
+            short_array x2 = minimizer->minimize( u.x_r, u.lambda, energy2, m2, b2, false);
             short_array x3 = minimizer->minimize( u.x_r, u.lambda, energy3, m3, b3, true);
             if(min_energy > energy2 && min_energy > energy3)
                 e1++;
@@ -129,7 +127,7 @@ class ApproximateES
                 min_b = b3;
                 min_energy = energy3;
                 min_x = x3;
-            }*/
+            }
 
             //if( !compare( min_x, u.x_l, u.lambda) && !compare(min_x, u.x_r, u.lambda) )
             {
