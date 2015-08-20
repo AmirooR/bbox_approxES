@@ -48,6 +48,7 @@ using namespace cv;
 #define SSTR( x ) dynamic_cast< std::ostringstream & >( \
                         ( std::ostringstream() << std::dec << x ) ).str()
 
+#define INFINITY_UNARY 100000
 
 float* FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg_tr = 64, double prob_add = 0.0)
 {
@@ -318,6 +319,32 @@ int main( int argc, char* argv[]){
     ifstream myFile (argv[4], ios::in | ios::binary);
     myFile.read((char*)unary, M*H*W*sizeof(float));
 
+    int i = 0;
+    for(int r=0; r<imMat.rows; r++)
+    {
+        for(int c=0; c<imMat.cols; c++)
+        {
+            unsigned char m = annoMask.at<uchar>(r,c);
+            if( m >= fg_tr)
+            {
+                unary[i] = INFINITY_UNARY;
+                unary[i+1] = 0;
+            }
+            else if ( m <= bg_tr)
+            {
+                //unary[i] = unary[i] + lambda;
+                unary[i] = 0;
+                unary[i+1] = INFINITY_UNARY;
+            }
+            /*else
+            {
+                unary[i] = unary[i] + lambda;
+                unary_out[i+1] = unary_in[i+1];// + lambda;
+            }*/
+            i+=2;
+        }
+    }
+
     //lasso add 0: 1_2_4_53_4_6_1_1  0.960786,
     //-1_1_5_53_4_6_1_-1 0.963329,
     //-2_1_5_53_4_6_1_-1 0.963924,
@@ -332,45 +359,68 @@ int main( int argc, char* argv[]){
     //-2_1_5_7_36_5_1_-7 0.990183,
     //-2_1_5_6_38_5_1_-7 0.990345,
     //
+    //
+    // Train all:
+    //
+    // -2_2_32_6_38_32_5_-5  0.933641,
+    // -2_2_32_6_38_32_5_2   0.935234,
+    //
+    //
+    // 3_3_10_20_33_6_43_1  0.923417,
+    // 3_3_10_20_33_4_43_1  0.924463,
+    // 3_3_10_20_33_3_43_1  0.925605,
+    // 3_3_10_20_33_12_43_1 0.927005,
+    // 3_3_10_20_4_12_43_1  0.928062,
+    // 3_3_10_3_16_12_43_1  0.930500,
+    // 3_3_5_12_16_12_43_1  0.933023,
+    // 3_3_27_12_16_12_43_-2  0.933995,
+    // 
+    // 2_3_27_12_16_12_43_-2 0.935552,
+    // 2_3_27_12_16_12_43_-2 0.935841,
+    //
+    // 4_3_27_12_14_12_43_-2 0.935852,
+    //
+    //4_3_17_12_14_12_43_-2 0.936226,
 //#pragma omp parallel for //log: 0_1_2_6_2_2
-    for(int logl=-2; logl<=-2;logl++) //0; 21-> 0 *
+    for(int logl=4; logl<=4;logl++) //0; 21-> 0 *
     {
-        //float l = logl/10.0f;//
-        float l = powf(2,logl);
+        float l = logl;///10.0f;//
+        //float l = powf(2,logl);
 //#pragma omp parallel for
-        for(int isr = 32; isr <= 32; isr+=2) // 1 * 
+        for(int isr = 43; isr <= 43; isr+=1) // 1 * 
         {
-            int expisr = isr;//
+            float expisr = isr;//isr/10.0;//
             //float expisr = powf(2, isr);
-#pragma omp parallel for
-            for(int iw = -5; iw <=-5; iw++) // -2 *
+//#pragma omp parallel for
+            for(int iw = -2; iw <=-2; iw+=1) // -2 *
             {
                 float expiw = powf(2, iw);
+                //int expiw = iw;
 
                 //#pragma omp parallel for
-                for(int gsx = 2; gsx <= 2; gsx+=1) //3; 21-> 1,2 *
+                for(int gsx = 3; gsx <= 3; gsx+=1) //3; 21-> 1,2 *
                 {
                     //float expgsx = powf(2, gsx);
                     int expgsx = gsx;
                     //#pragma omp parallel for
-                    for(int w1=32; w1<=32;w1+=1) //5; 21-> 2 *
+                    for(int w1=18; w1<=18;w1+=1) //5; 21-> 2 * | 17
                     {
                         //float expw1 = powf(2, w1);
                         int expw1 = w1; //powf(2, w1);
 
                         //#pragma omp parallel for
-                        for(int bsx = 6;  bsx <= 6; bsx+=1) //78; 21-> * 6
+                        for(int bsx = 12;  bsx <= 12; bsx+=1) //78; 21-> * 6 | 12
                         {
                             //float expbsx = powf(2, bsx);
                             int expbsx = bsx;
                             //#pragma omp parallel for
-                            for(int bsr = 38; bsr <= 38; bsr+= 1) //3 <- 7; 21-> * 2
+                            for(int bsr = 14; bsr <= 14; bsr+= 1) //3 <- 7; 21-> * 2| 16
                             {
                                 //float expbsr = powf(2, bsr);
                                 int expbsr = bsr;//powf(2, bsr);
 
                                 //#pragma omp parallel for
-                                for(int w2=32; w2 <=32; w2+= 2) //5;  21-> 5 * 2
+                                for(int w2=12; w2 <=12; w2+= 1) //5;  21-> 5 * 2 | 12
                                 {
                                     //float expw2 = powf(2, w2);
                                     int  expw2 = w2;// powf(2, w2);

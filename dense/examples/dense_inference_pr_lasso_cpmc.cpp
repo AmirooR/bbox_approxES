@@ -48,6 +48,7 @@ using namespace cv;
 #define SSTR( x ) dynamic_cast< std::ostringstream & >( \
                         ( std::ostringstream() << std::dec << x ) ).str()
 
+#define INFINITY_UNARY 100000
 float* FgProbGMM(Mat im, Mat fgMask, int num_clusters = 10, int fg_tr = 128, int bg_tr = 64, double prob_add = 0.0)
 {
     Mat patterns(0, 0, CV_32F);
@@ -164,39 +165,34 @@ const float GT_PROB = 0.75;
 
 
 // Simple classifier that is 50% certain that the annotation is correct
-float * classify( const unsigned char * im, int W, int H, int M , short* map){
-	const float u_energy = -log( 1.0f / M );
-	const float n_energy = -log( (1.0f - GT_PROB) / (M-1) );
-	const float p_energy = -log( GT_PROB );
-	float * res = new float[W*H*M];
-	for( int k=0; k<W*H; k++ ){
-		// Map the color to a label
-		int c = getColor( im + 3*k );
-		int i;
-		for( i=0;i<nColors && c!=colors[i]; i++ );
-		if (c && i==nColors){
-			if (i<M)
-				colors[nColors++] = c;
-			else
-				c=0;
-		}
-		
-		// Set the energy
-		float * r = res + k*M;
-		if (c){
-			for( int j=0; j<M; j++ )
-				r[j] = n_energy;
-			r[i] = p_energy;
-            map[k] = (short)i;
-		}
-		else{
-			for( int j=0; j<M; j++ )
-				r[j] = u_energy;
-            map[k] = (short)(0);
-		}
-	}
-	return res;
-}
+/*void classify(float* unary, Mat mask, int fg_tr, int bg_tr)
+{
+    for(int r=0; r<mask.rows; r++)
+    {
+        for(int c=0; c<mask.cols; c++)
+        {
+            unsigned char m = mask.at<uchar>(r,c);
+            int i = (r*mask.cols+c)*2;
+            if(m == fg_tr) //x_u = 0 & u \in v_f
+            {
+                unary[i] = INFINITY_UNARY;
+            }
+            //else  //x_u = 0 & u \not_in v_f
+            //{
+            //    unary[i] = f(x)+lambda
+            //}
+
+            i++;
+            if(m == bg_tr || m==0)// x_u = 1 & u \in v_b
+            {
+                unary[i] = INFINITY_UNARY;
+            }
+
+
+        }
+    }
+}*/
+
 
 
 class DenseEnergyMinimizer: public EnergyMinimizer
@@ -207,7 +203,7 @@ class DenseEnergyMinimizer: public EnergyMinimizer
     int N;
     unsigned char *im;
     Mat imMat;
-    //Mat annoMask;
+    Mat annoMask;
     short *map;
     short *prev_map;
     float *unary;
@@ -236,7 +232,8 @@ class DenseEnergyMinimizer: public EnergyMinimizer
     double prob_add;
 
     public:
-    DenseEnergyMinimizer(const char *im_path, const char *anno_path, int M, 
+    DenseEnergyMinimizer(const char *im_path, const char *anno_path, const char *mask_path,
+            int M, 
             int do_normalization = 0,
             bool do_initialization = true,
             bool approximate_pairwise=false,
@@ -279,22 +276,22 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         num_computations(0),
         prev_p_e(0)
     {
-        //int GH, GW;
+        int GH, GW;
         imMat = imread(im_path, CV_LOAD_IMAGE_COLOR);
         //resize(imMat, imMat, Size(0,0), 0.25, 0.25);
 
-        //annoMask = imread(anno_path, CV_LOAD_IMAGE_GRAYSCALE);
+        annoMask = imread(mask_path, CV_LOAD_IMAGE_GRAYSCALE);
         //resize(annoMask, annoMask, Size(0,0), 0.25, 0.25);
 
         W = imMat.cols;
         H = imMat.rows;
-        //GW = annoMask.cols;
-        //GH = annoMask.rows;
+        GW = annoMask.cols;
+        GH = annoMask.rows;
 
-        /*if (W!=GW || H!=GH){
+        if (W!=GW || H!=GH){
             printf("Annotation size doesn't match image!\n");
             exit(1);
-        }*/
+        }
 
         im = new unsigned char[H*W*3];
         for(int r=0; r<H; r++)
@@ -316,9 +313,12 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         myFile.read((char*)unary, M*N*sizeof(float));
         for(int i=0; i < M*N; i++)
             unary[i] = unary_l * unary[i];
+        
+        //define unaries: they are -P now!
+        
+        define_unaries( unary, unary, 0.0f);
 
-
-//classify( anno, W, H, M , map);
+        //classify( anno, W, H, M , map);
         init_x = new float[N*M];
         memcpy( init_x, unary, N*M*sizeof(float) );
         l_unary = new float[N*M];
@@ -349,6 +349,82 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             cout<<"Computing norms"<<endl;
             compute_norms();
         }
+
+    }
+
+    void define_unaries( float* unary_in, float* unary_out, float lambda = 0)
+    {
+        int i = 0;
+        for(int r=0; r<imMat.rows; r++)
+        {
+            for(int c=0; c<imMat.cols; c++)
+            {
+                unsigned char m = annoMask.at<uchar>(r,c);
+                if( m >= fg_tr)
+                {
+                    unary_out[i] = INFINITY_UNARY;
+                    unary_out[i+1] = 0;
+                }
+                else if ( m <= bg_tr)
+                {
+                    //unary[i] = unary[i] + lambda;
+                    unary_out[i] = 0;
+                    unary_out[i+1] = INFINITY_UNARY;
+                }
+                else
+                {
+                    unary_out[i] = unary_in[i] + lambda;
+                    unary_out[i+1] = unary_in[i+1];// + lambda;
+                }
+                i+=2;
+            }
+        }
+    }
+
+    void decompose_Unary_from_MAP_M_P(short *map, float& mm, float& p)
+    {
+        int _m = 0;
+        int i = 0;
+        p = 0;
+        for(int r=0; r<imMat.rows; r++)
+        {
+            for(int c=0; c<imMat.cols; c++)
+            {
+                unsigned char m = annoMask.at<uchar>(r,c);
+                if( m >= fg_tr)
+                {
+                    if( map[i] == 0)
+                        p += INFINITY_UNARY;
+                    //unary_out[i] = INFINITY_UNARY;
+                    //unary_out[i+1] = 0;
+                }
+                else if ( m <= bg_tr)
+                {
+                    if( map[i] == 1)
+                        p += INFINITY_UNARY;
+                    //unary_out[i] = 0;
+                    //unary_out[i+1] = INFINITY_UNARY;
+                }
+                else
+                {
+                    if( map[i] == 0)
+                    {
+                        _m++;
+                        p += unary[i*2];
+                    }
+                    else
+                    {
+                        p += unary[i*2+1];
+                    }
+
+                    //unary_out[i] = unary_in[i] + lambda;
+                    //unary_out[i+1] = 0;//unary_in[i+1] + lambda;
+                }
+                i++;
+            }
+        }
+
+        mm = _m;
 
     }
 
@@ -402,11 +478,15 @@ class DenseEnergyMinimizer: public EnergyMinimizer
         cout<<"Minimizing Lambda = "<<lambda<<endl;
         short_array output(new float[N*M]);
         //cout<<"N "<<N<<", M "<<M<<", W "<<W<<", H "<<H<<endl; 
-        for(int i = 0; i < N*M; i++)
+        /*for(int i = 0; i < N; i++)
         {
-            l_unary[i] = lambda*unary[i];
-        }
+            float hv1 = unary[i*2+1]-unary[i*2];
+            l_unary[i*2] = 0;
+            l_unary[i*2+1] = hv1+lambda;
+        }*/
+        define_unaries( unary, l_unary, lambda); 
         cout<<"l_unary set"<<endl; 
+
         if( do_initialization)
         {
             //make_log_probability_x(input.get());
@@ -440,19 +520,29 @@ class DenseEnergyMinimizer: public EnergyMinimizer
             crf->pairwiseEnergy(map, p_result, -1);
             n_u_sum = 0.0f, n_p_sum = 0.0f;
             u_sum = 0;
+            
             for(int i = 0; i < N; ++i)
             {
                 n_u_sum += u_result[i];
                 n_p_sum += p_result[i];
                 //output[i] = map[i];
-                u_sum += unary[ i*M+map[i]];
+                if(map[i] == 1)
+                {
+                    u_sum += unary[ i*M+1] - unary[i*M];
+                }
             }
+            float _m = 0, _p = 0; 
+            decompose_Unary_from_MAP_M_P(map, _m, _p);
+
             cout<< "Unary sum: "<<n_u_sum <<" = lambda*u = "<<lambda<<"* "<< u_sum<<" = "<<lambda*u_sum<<endl;
             cout<< "Pairwise sum: "<<n_p_sum <<endl;
             cout<< "After optimization: energy is "<< (n_p_sum + n_u_sum) << endl;
-            m = u_sum;
-            b = n_p_sum;
+            m = _m;//u_sum;
+            b = n_p_sum + _p;
             energy = m * lambda + b;
+            cout<<"\t\tm is: "<<m<<endl;
+            cout<<"\t\tb is: "<<b<<endl;
+            cout<<"\t\tE is: "<<energy<<endl;
         }
         else//computing exact pairwise
         {
@@ -825,12 +915,13 @@ short* map_from_neg_log_prob(const float* in, int N, int M)
 
 
 int main( int argc, char* argv[]){
-	if (argc<4){
-		printf("Usage: %s image unary outputdir\n", argv[0] );
+	if (argc<5){
+		printf("Usage: %s image unary mask outputdir\n", argv[0] );
 		return 1;
 	}
     const int M = 2;
-        DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2],/*number of labels*/M,
+        DenseEnergyMinimizer *e = new DenseEnergyMinimizer(argv[1],argv[2], argv[3],
+                /*number of labels*/M,
             /* do normalization */ NO_NORMALIZATION,//MEAN_NORMALIZATION ,//PIXEL_NORMALIZATION, NO_NORMALIZATION,
             /* do initialization */ true, 
             /* approximate pairwise */true,
@@ -843,11 +934,15 @@ int main( int argc, char* argv[]){
         
     float* current_x0 = new float[e->getNumberOfVariables()*M];
     e->make_negative_log_prob_from_prob_x(e->get_current_prob(), current_x0);
+    double _e, _m, _b;
+    double lambda = 0;
+    short_array in(new float[e->getNumberOfVariables()*M]);
+    short_array x1 = e->minimize(in , /*lambda*/lambda, _e, _m, _b, true);
 
-	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ 0.5,/* lambda_max*/ 100.001, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */200,/*verbosity*/ 10);
+	ApproximateES aes(/* number of vars */ e->getNumberOfVariables()*M,/*lambda_min */ -10.0,/* lambda_max*/ 10.0, /* energy_minimizer */e,/* x0 */ current_x0, /*max_iter */300,/*verbosity*/ 10, x1.get());
     aes.loop();
     vector<short_array> labelings = aes.getLabelings();
-    string out_dir(argv[3]);
+    string out_dir(argv[4]);
     string lambdas_file = out_dir + string("lambdas.txt");
     aes.writeLambdas(lambdas_file.c_str());
     

@@ -41,7 +41,7 @@ class ApproximateES
     int e1, e2, e3;
 
     public:
-    ApproximateES(size_t _N, double _lambda_min, double _lambda_max, EnergyMinimizer* _m , float* _x0 = NULL, size_t _max_iter = 10000, int _verbosity = 0):
+    ApproximateES(size_t _N, double _lambda_min, double _lambda_max, EnergyMinimizer* _m , float* _x0 = NULL, size_t _max_iter = 10000, int _verbosity = 0, float* _x1 = NULL):
         kmc(_lambda_min, _lambda_max), 
         lambda_min(_lambda_min), 
         lambda_max(_lambda_max), 
@@ -52,19 +52,24 @@ class ApproximateES
     {
         e1 = e2 = e3 = 0;
         short_array x0( new float[N] );
+        short_array x1( new float[N] );
         for(size_t i = 0; i < N; i++) // copy
         {
             if(_x0 != NULL )
                 x0[i] = _x0[i];
             else x0[i] = 0;
+
+            if(_x1 != NULL )
+                x1[i] = _x1[i];
+            else x1[i] = x0[i];
         }
         Undefined u1(lambda_min, x0, x0);
-        Undefined u2(lambda_max, x0, x0);
+        Undefined u2(lambda_max, x1, x1);
         Lambda.push(u1);
         Lambda.push(u2);
 
         labelings.push_back( x0 );
-        labelings.push_back( x0 );
+        labelings.push_back( x1 );
     }
 
     bool compare(const short_array& s1, const short_array& s2, double lambda)
@@ -94,8 +99,13 @@ class ApproximateES
             Lambda.pop();
             double energy2, m2, b2,min_m, min_b, min_energy;
             double energy3, m3, b3;
-            short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, false);
-            short_array x2 = minimizer->minimize( u.x_r, u.lambda, energy2, m2, b2, false);
+            short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, true);
+
+            //short_array min_x = minimizer->minimize( u.x_l, u.lambda, min_energy, min_m, min_b, false);
+
+            /* TODO: changed! Uncomment
+             *
+             * short_array x2 = minimizer->minimize( u.x_r, u.lambda, energy2, m2, b2, false);
             short_array x3 = minimizer->minimize( u.x_r, u.lambda, energy3, m3, b3, true);
             if(min_energy > energy2 && min_energy > energy3)
                 e1++;
@@ -119,7 +129,7 @@ class ApproximateES
                 min_b = b3;
                 min_energy = energy3;
                 min_x = x3;
-            }
+            }*/
 
             //if( !compare( min_x, u.x_l, u.lambda) && !compare(min_x, u.x_r, u.lambda) )
             {
