@@ -382,7 +382,7 @@ int main( int argc, char* argv[]){
     //
     //4_3_17_12_14_12_43_-2 0.936226,
 //#pragma omp parallel for //log: 0_1_2_6_2_2
-    for(int logl=4; logl<=4;logl++) //0; 21-> 0 *
+    for(int logl=1; logl<=1;logl++) //0; 21-> 0 *
     {
         float l = logl;///10.0f;//
         //float l = powf(2,logl);
