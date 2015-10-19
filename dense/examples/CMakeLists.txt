@@ -6,6 +6,9 @@ add_executable( dense_inference_pr_lasso_additive util.cpp dense_inference_pr_la
 add_executable( dense_inference_pr_lasso_cpmc util.cpp dense_inference_pr_lasso_cpmc.cpp )
 add_executable( computeEnergy util.cpp computeEnergy.cpp )
 
+add_executable( dense_inference_pr_lasso_cpmc_orig util.cpp dense_inference_pr_lasso_cpmc_orig.cpp )
+target_link_libraries( dense_inference_pr_lasso_cpmc_orig densecrf ${OpenCV_LIBS})
+
 target_link_libraries( computeEnergy densecrf ${OpenCV_LIBS})
 target_link_libraries( dense_inference_pr_lasso_cpmc densecrf ${OpenCV_LIBS})
 target_link_libraries( dense_inference_pr_lasso_additive densecrf ${OpenCV_LIBS})
